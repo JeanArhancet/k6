@@ -193,7 +193,16 @@ func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 		},
 	}
 
-	return newInfoObj(rt, vi)
+	o, err := newInfoObj(rt, vi)
+	if err != nil {
+		return o, err
+	}
+
+	err = o.Set("tags", rt.NewDynamicObject(&tagsDynamicObject{
+		Runtime: rt,
+		Tags:    vuState.Tags,
+	}))
+	return o, err
 }
 
 func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) (*goja.Object, error) {
@@ -207,4 +216,52 @@ func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) (*goja.Ob
 	}
 
 	return o, nil
+}
+
+type tagsDynamicObject struct {
+	Runtime *goja.Runtime
+	Tags    *lib.TagMap
+}
+
+// Get a property value for the key. May return nil if the property does not exist.
+func (o *tagsDynamicObject) Get(key string) goja.Value {
+	tag, ok := o.Tags.Get(key)
+	if !ok {
+		return nil
+	}
+	return o.Runtime.ToValue(tag)
+}
+
+// Set a property value for the key. Return true if succeed.
+// If a type different from a string is passed as value then
+// it will be implicitly converted to the goja's relative string representation.
+func (o *tagsDynamicObject) Set(key string, val goja.Value) bool {
+	o.Tags.Set(key, val.String())
+	return true
+}
+
+// Has returns true if the property exists.
+func (o *tagsDynamicObject) Has(key string) bool {
+	_, ok := o.Tags.Get(key)
+	return ok
+}
+
+// Delete deletes the property for the key. It returns true on success (note, that includes missing property).
+func (o *tagsDynamicObject) Delete(key string) bool {
+	o.Tags.Delete(key)
+	return true
+}
+
+// Keys returns a slice with all existing property keys. The order is not deterministic.
+func (o *tagsDynamicObject) Keys() []string {
+	if o.Tags.Len() < 1 {
+		return nil
+	}
+
+	tags := o.Tags.Clone()
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	return keys
 }
