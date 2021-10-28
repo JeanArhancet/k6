@@ -734,24 +734,28 @@ func (u *VU) runFn(
 		u.state.Tags["iter"] = strconv.FormatInt(u.state.Iteration, 10)
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			gojaStack := u.Runtime.CaptureCallStack(20, nil)
-			err = fmt.Errorf("a panic occurred in VU code but was caught: %s", r)
-			// TODO figure out how to use PanicLevel without panicing .. this might require changing
-			// the logger we use see
-			// https://github.com/sirupsen/logrus/issues/1028
-			// https://github.com/sirupsen/logrus/issues/993
-			b := new(bytes.Buffer)
-			for _, s := range gojaStack {
-				s.Write(b)
+	loop := newEventLoop()
+	loop.RunOnLoop(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				gojaStack := u.Runtime.CaptureCallStack(20, nil)
+				err = fmt.Errorf("a panic occurred in VU code but was caught: %s", r)
+				// TODO figure out how to use PanicLevel without panicing .. this might require changing
+				// the logger we use see
+				// https://github.com/sirupsen/logrus/issues/1028
+				// https://github.com/sirupsen/logrus/issues/993
+				b := new(bytes.Buffer)
+				for _, s := range gojaStack {
+					s.Write(b)
+				}
+				u.state.Logger.Log(logrus.ErrorLevel, "panic: ", r, "\n", string(debug.Stack()), "\nGoja stack:\n", b.String())
 			}
-			u.state.Logger.Log(logrus.ErrorLevel, "panic: ", r, "\n", string(debug.Stack()), "\nGoja stack:\n", b.String())
-		}
-	}()
+		}()
+		v, err = fn(goja.Undefined(), args...) // Actually run the JS script
+	})
 
 	startTime := time.Now()
-	v, err = fn(goja.Undefined(), args...) // Actually run the JS script
+	loop.Start(ctx)
 	endTime := time.Now()
 	var exception *goja.Exception
 	if errors.As(err, &exception) {
