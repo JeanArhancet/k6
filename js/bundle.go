@@ -69,6 +69,7 @@ type BundleInstance struct {
 	env map[string]string
 
 	exports map[string]goja.Callable
+	loop    *eventLoop
 }
 
 // NewBundle creates a new bundle from a source file and a filesystem.
@@ -261,6 +262,7 @@ func (b *Bundle) Instantiate(logger logrus.FieldLogger, vuID uint64) (bi *Bundle
 		Context: ctxPtr,
 		exports: make(map[string]goja.Callable),
 		env:     b.RuntimeOptions.Env,
+		loop:    init.loop,
 	}
 
 	// Grab any exported functions that could be executed. These were

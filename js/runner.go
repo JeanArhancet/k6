@@ -231,6 +231,7 @@ func (r *Runner) newVU(idLocal, idGlobal uint64, samplesOut chan<- stats.SampleC
 		BPool:          bpool.NewBufferPool(100),
 		Samples:        samplesOut,
 		scenarioIter:   make(map[string]uint64),
+		loop:           bi.loop,
 	}
 
 	vu.state = &lib.State{
@@ -541,6 +542,7 @@ func (r *Runner) getTimeoutFor(stage string) time.Duration {
 type VU struct {
 	BundleInstance
 
+	loop      *eventLoop
 	Runner    *Runner
 	Transport *http.Transport
 	Dialer    *netext.Dialer

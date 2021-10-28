@@ -58,3 +58,7 @@ func (m *InstanceCore) GetState() *lib.State {
 func (m *InstanceCore) GetRuntime() *goja.Runtime {
 	return m.Runtime
 }
+
+func (m *InstanceCore) MakeHandledPromise() (p *goja.Promise, resolve func(interface{}), reject func(interface{})) {
+	return m.Runtime.NewPromise() // TODO fix
+}
