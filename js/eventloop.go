@@ -23,6 +23,8 @@ package js
 import (
 	"context"
 	"sync"
+
+	"github.com/dop251/goja"
 )
 
 // an event loop
@@ -92,4 +94,16 @@ func (e *eventLoop) Start(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (e *eventLoop) makeHandledPromise(rt *goja.Runtime) (*goja.Promise, func(interface{}), func(interface{})) {
+	reserved := e.Reserve()
+	p, resolve, reject := rt.NewPromise()
+	return p, func(i interface{}) {
+			// more stuff
+			reserved(func() { resolve(i) })
+		}, func(i interface{}) {
+			// more stuff
+			reserved(func() { reject(i) })
+		}
 }

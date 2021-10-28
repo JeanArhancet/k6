@@ -736,8 +736,7 @@ func (u *VU) runFn(
 		u.state.Tags["iter"] = strconv.FormatInt(u.state.Iteration, 10)
 	}
 
-	loop := newEventLoop()
-	loop.RunOnLoop(func() {
+	u.loop.RunOnLoop(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				gojaStack := u.Runtime.CaptureCallStack(20, nil)
@@ -757,7 +756,7 @@ func (u *VU) runFn(
 	})
 
 	startTime := time.Now()
-	loop.Start(ctx)
+	u.loop.Start(ctx)
 	endTime := time.Now()
 	var exception *goja.Exception
 	if errors.As(err, &exception) {

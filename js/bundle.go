@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"net/url"
 	"runtime"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/parser"
@@ -309,6 +310,18 @@ func (b *Bundle) instantiate(logger logrus.FieldLogger, rt *goja.Runtime, init *
 	}
 	rt.Set("__ENV", env)
 	rt.Set("__VU", vuID)
+	rt.Set("setTimeout", func(t float64, f func()) {
+		// TODO checks and fixes
+		// TODO this should technically *not* use promises
+		p, resolve, reject := init.loop.makeHandledPromise(rt)
+		_, _ = p, reject
+		go func() {
+			// this technically should get rejected on
+			time.Sleep(time.Duration(t * float64(time.Millisecond)))
+			init.loop.RunOnLoop(f)
+			resolve(nil)
+		}()
+	})
 	rt.Set("console", common.Bind(rt, newConsole(logger), init.ctxPtr))
 
 	if init.compatibilityMode == lib.CompatibilityModeExtended {

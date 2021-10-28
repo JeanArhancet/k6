@@ -177,15 +177,7 @@ func (m *moduleInstanceCoreImpl) GetRuntime() *goja.Runtime {
 }
 
 func (m *moduleInstanceCoreImpl) MakeHandledPromise() (*goja.Promise, func(interface{}), func(interface{})) {
-	rt := m.GetRuntime()
-	p, resolve, reject := rt.NewPromise()
-	return p, func(i interface{}) {
-			// more stuff
-			resolve(i)
-		}, func(i interface{}) {
-			// more stuff
-			reject(i)
-		}
+	return m.loop.makeHandledPromise(m.rt)
 }
 
 func toESModuleExports(exp modules.Exports) interface{} {
