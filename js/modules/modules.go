@@ -132,6 +132,11 @@ type InstanceCore interface {
 	// Caveats: this likely won't work if the Promise is rejected from within the js code
 	// This also will likely have problems with context canceling so both of those will need extra care
 	MakeHandledPromise() (p *goja.Promise, resolve func(interface{}), reject func(interface{}))
+
+	// AddToEventLoop needs a better name
+	// MUST only be called while absolutely certain that something will not let the iteration end between the start and
+	// end of the call
+	AddToEventLoop(func())
 }
 
 // Exports is representation of ESM exports of a module

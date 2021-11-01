@@ -176,6 +176,10 @@ func (m *moduleInstanceCoreImpl) GetRuntime() *goja.Runtime {
 	return m.rt
 }
 
+func (m *moduleInstanceCoreImpl) AddToEventLoop(f func()) {
+	m.loop.RunOnLoop(f)
+}
+
 func (m *moduleInstanceCoreImpl) MakeHandledPromise() (*goja.Promise, func(interface{}), func(interface{})) {
 	return m.loop.makeHandledPromise(m.rt)
 }

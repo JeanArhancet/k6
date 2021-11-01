@@ -62,3 +62,7 @@ func (m *InstanceCore) GetRuntime() *goja.Runtime {
 func (m *InstanceCore) MakeHandledPromise() (p *goja.Promise, resolve func(interface{}), reject func(interface{})) {
 	return m.Runtime.NewPromise() // TODO fix
 }
+
+func (m *InstanceCore) AddToEventLoop(f func()) {
+	// TODO Implement
+}
