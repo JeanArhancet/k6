@@ -22,6 +22,8 @@ package execution
 
 import (
 	"errors"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/dop251/goja"
@@ -200,7 +202,7 @@ func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 
 	err = o.Set("tags", rt.NewDynamicObject(&tagsDynamicObject{
 		Runtime: rt,
-		Tags:    vuState.Tags,
+		State:   vuState,
 	}))
 	return o, err
 }
@@ -220,12 +222,12 @@ func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) (*goja.Ob
 
 type tagsDynamicObject struct {
 	Runtime *goja.Runtime
-	Tags    *lib.TagMap
+	State   *lib.State
 }
 
 // Get a property value for the key. May return nil if the property does not exist.
 func (o *tagsDynamicObject) Get(key string) goja.Value {
-	tag, ok := o.Tags.Get(key)
+	tag, ok := o.State.Tags.Get(key)
 	if !ok {
 		return nil
 	}
@@ -236,29 +238,57 @@ func (o *tagsDynamicObject) Get(key string) goja.Value {
 // If a type different from a string is passed as value then
 // it will be implicitly converted to the goja's relative string representation.
 func (o *tagsDynamicObject) Set(key string, val goja.Value) bool {
-	o.Tags.Set(key, val.String())
-	return true
+	switch val.ExportType().Kind() {
+	case
+		reflect.String,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128:
+
+		o.State.Tags.Set(key, val.String())
+		return true
+	default:
+		err := fmt.Errorf("only String, Boolean and Number types are accepted as a Tag value")
+		if o.State.Options.Throw.Bool {
+			common.Throw(o.Runtime, err)
+			return false
+		}
+		o.State.Logger.Warn("the Set operation has been discarded because" + err.Error())
+		return false
+	}
 }
 
 // Has returns true if the property exists.
 func (o *tagsDynamicObject) Has(key string) bool {
-	_, ok := o.Tags.Get(key)
+	_, ok := o.State.Tags.Get(key)
 	return ok
 }
 
 // Delete deletes the property for the key. It returns true on success (note, that includes missing property).
 func (o *tagsDynamicObject) Delete(key string) bool {
-	o.Tags.Delete(key)
+	o.State.Tags.Delete(key)
 	return true
 }
 
 // Keys returns a slice with all existing property keys. The order is not deterministic.
 func (o *tagsDynamicObject) Keys() []string {
-	if o.Tags.Len() < 1 {
+	if o.State.Tags.Len() < 1 {
 		return nil
 	}
 
-	tags := o.Tags.Clone()
+	tags := o.State.Tags.Clone()
 	keys := make([]string, 0, len(tags))
 	for k := range tags {
 		keys = append(keys, k)

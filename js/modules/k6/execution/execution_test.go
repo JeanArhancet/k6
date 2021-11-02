@@ -22,64 +22,146 @@ package execution
 
 import (
 	"context"
+	"io/ioutil"
 	"testing"
 
 	"github.com/dop251/goja"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modulestest"
 	"go.k6.io/k6/lib"
+	"go.k6.io/k6/lib/testutils"
 	"go.k6.io/k6/stats"
+	"gopkg.in/guregu/null.v3"
 )
 
 func TestVUTags(t *testing.T) {
 	t.Parallel()
 
-	rt := goja.New()
-	ctx := common.WithRuntime(context.Background(), rt)
-	ctx = lib.WithState(ctx, &lib.State{
-		Options: lib.Options{
-			SystemTags: stats.NewSystemTagSet(stats.TagVU),
-		},
-		Tags: lib.NewTagMap(map[string]string{
-			"vu": "42",
-		}),
+	setupExecModule := func(t *testing.T) (*ModuleInstance, *goja.Runtime, *testutils.SimpleLogrusHook) {
+		logHook := &testutils.SimpleLogrusHook{HookedLevels: []logrus.Level{logrus.WarnLevel}}
+		testLog := logrus.New()
+		testLog.AddHook(logHook)
+		testLog.SetOutput(ioutil.Discard)
+
+		state := &lib.State{
+			Options: lib.Options{
+				SystemTags: stats.NewSystemTagSet(stats.TagVU),
+			},
+			Tags: lib.NewTagMap(map[string]string{
+				"vu": "42",
+			}),
+			Logger: testLog,
+		}
+
+		rt := goja.New()
+		ctx := common.WithRuntime(context.Background(), rt)
+		ctx = lib.WithState(ctx, state)
+		m, ok := New().NewModuleInstance(
+			&modulestest.InstanceCore{
+				Runtime: rt,
+				InitEnv: &common.InitEnvironment{},
+				Ctx:     ctx,
+				State:   state,
+			},
+		).(*ModuleInstance)
+		require.True(t, ok)
+		require.NoError(t, rt.Set("exec", m.GetExports().Default))
+
+		return m, rt, logHook
+	}
+
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+
+		_, rt, _ := setupExecModule(t)
+		tag, err := rt.RunString(`exec.vu.tags["vu"]`)
+		require.NoError(t, err)
+		assert.Equal(t, "42", tag.String())
+
+		// not found
+		tag, err = rt.RunString(`exec.vu.tags["not-existing-tag"]`)
+		require.NoError(t, err)
+		assert.Equal(t, "undefined", tag.String())
 	})
-	m, ok := New().NewModuleInstance(
-		&modulestest.InstanceCore{
-			Runtime: rt,
-			InitEnv: &common.InitEnvironment{},
-			Ctx:     ctx,
-		},
-	).(*ModuleInstance)
-	require.True(t, ok)
-	require.NoError(t, rt.Set("exec", m.GetExports().Default))
 
-	// overwrite a system tag is allowed
-	_, err := rt.RunString(`exec.vu.tags["vu"] = 101`)
-	require.NoError(t, err)
-	val, err := rt.RunString(`exec.vu.tags["vu"]`)
-	require.NoError(t, err)
-	// different type from string are implicitly converted into string
-	assert.Equal(t, "101", val.String())
+	t.Run("JSONEncoding", func(t *testing.T) {
+		t.Parallel()
 
-	// not found
-	tag, err := rt.RunString(`exec.vu.tags["not-existing-tag"]`)
-	require.NoError(t, err)
-	assert.Equal(t, "undefined", tag.String())
+		mi, rt, _ := setupExecModule(t)
+		state := mi.GetState()
+		state.Tags.Set("custom-tag", "mytag1")
 
-	// set
-	_, err = rt.RunString(`exec.vu.tags["custom-tag"] = "mytag"`)
-	require.NoError(t, err)
+		encoded, err := rt.RunString(`JSON.stringify(exec.vu.tags)`)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"vu":"42","custom-tag":"mytag1"}`, encoded.String())
+	})
 
-	// get
-	tag, err = rt.RunString(`exec.vu.tags["custom-tag"]`)
-	require.NoError(t, err)
-	assert.Equal(t, "mytag", tag.String())
+	t.Run("Set", func(t *testing.T) {
+		t.Parallel()
 
-	// json encoding
-	encoded, err := rt.RunString(`JSON.stringify(exec.vu.tags)`)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"vu":"101","custom-tag":"mytag"}`, encoded.String())
+		t.Run("SuccessAccetedTypes", func(t *testing.T) {
+			t.Parallel()
+
+			_, rt, _ := setupExecModule(t)
+
+			_, err := rt.RunString(`exec.vu.tags["custom-tag"] = "mytag"`)
+			require.NoError(t, err)
+
+			// bool and numbers are implicitly converted into string
+
+			_, err = rt.RunString(`exec.vu.tags["vu"] = true`)
+			require.NoError(t, err)
+			val, err := rt.RunString(`exec.vu.tags["vu"]`)
+			require.NoError(t, err)
+			assert.Equal(t, "true", val.String())
+
+			_, err = rt.RunString(`exec.vu.tags["vu"] = 101`)
+			require.NoError(t, err)
+			val, err = rt.RunString(`exec.vu.tags["vu"]`)
+			require.NoError(t, err)
+			assert.Equal(t, "101", val.String())
+		})
+
+		t.Run("SuccessOverwriteSystemTag", func(t *testing.T) {
+			t.Parallel()
+
+			_, rt, _ := setupExecModule(t)
+
+			_, err := rt.RunString(`exec.vu.tags["vu"] = "vu101"`)
+			require.NoError(t, err)
+			val, err := rt.RunString(`exec.vu.tags["vu"]`)
+			require.NoError(t, err)
+			assert.Equal(t, "vu101", val.String())
+		})
+
+		t.Run("DiscardWrongTypeRaisingError", func(t *testing.T) {
+			t.Parallel()
+
+			mi, rt, _ := setupExecModule(t)
+			state := mi.GetState()
+			state.Options.Throw = null.BoolFrom(true)
+			require.NotNil(t, state)
+
+			// array
+			_, err := rt.RunString(`exec.vu.tags["custom-tag"] = [1, 3, 5]`)
+			require.Contains(t, err.Error(), "only String, Boolean and Number")
+
+			// object
+			_, err = rt.RunString(`exec.vu.tags["custom-tag"] = {f1: "value1", f2: 4}`)
+			require.Contains(t, err.Error(), "only String, Boolean and Number")
+		})
+
+		t.Run("DiscardWrongTypeOnlyWarning", func(t *testing.T) {
+			_, rt, logHook := setupExecModule(t)
+			_, err := rt.RunString(`exec.vu.tags["custom-tag"] = [1, 3, 5]`)
+			require.NoError(t, err)
+
+			entries := logHook.Drain()
+			require.Len(t, entries, 1)
+			assert.Contains(t, entries[0].Message, "discarded")
+		})
+	})
 }
