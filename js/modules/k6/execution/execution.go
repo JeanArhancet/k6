@@ -238,7 +238,7 @@ func (o *tagsDynamicObject) Get(key string) goja.Value {
 // If a type different from a string is passed as value then
 // it will be implicitly converted to the goja's relative string representation.
 func (o *tagsDynamicObject) Set(key string, val goja.Value) bool {
-	switch val.ExportType().Kind() {
+	switch val.ExportType().Kind() { //nolint:exhaustive
 	case
 		reflect.String,
 		reflect.Bool,

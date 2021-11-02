@@ -40,7 +40,7 @@ import (
 func TestVUTags(t *testing.T) {
 	t.Parallel()
 
-	setupExecModule := func(t *testing.T) (*ModuleInstance, *goja.Runtime, *testutils.SimpleLogrusHook) {
+	setupExecModule := func(t *testing.T) (*ModuleInstance, *goja.Runtime, *testutils.SimpleLogrusHook) { // nolint:unparam
 		logHook := &testutils.SimpleLogrusHook{HookedLevels: []logrus.Level{logrus.WarnLevel}}
 		testLog := logrus.New()
 		testLog.AddHook(logHook)
@@ -155,6 +155,8 @@ func TestVUTags(t *testing.T) {
 		})
 
 		t.Run("DiscardWrongTypeOnlyWarning", func(t *testing.T) {
+			t.Parallel()
+
 			_, rt, logHook := setupExecModule(t)
 			_, err := rt.RunString(`exec.vu.tags["custom-tag"] = [1, 3, 5]`)
 			require.NoError(t, err)
