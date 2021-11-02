@@ -504,11 +504,12 @@ func (pushMsg *lokiPushMessage) WriteTo(w io.Writer) (n int64, err error) {
 			write(nanoseconds[:])
 			write([]byte(`",`))
 			if len([]rune(v.msg)) > pushMsg.maxSize {
-				difference := int64(len(v.msg) - pushMsg.maxSize)
+				msgRunes := []rune(v.msg)
+				difference := int64(len(msgRunes) - pushMsg.maxSize)
 				omitMsg := append(strconv.AppendInt([]byte("... omitting "), difference, 10), " characters ..."...)
 				v.msg = strings.Join([]string{
-					string([]rune(v.msg)[:pushMsg.maxSize/2]),
-					string([]rune(v.msg)[len([]rune(v.msg))-pushMsg.maxSize/2:]),
+					string(msgRunes[:pushMsg.maxSize/2]),
+					string(msgRunes[len(msgRunes)-pushMsg.maxSize/2:]),
 				}, string(omitMsg))
 			}
 
