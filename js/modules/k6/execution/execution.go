@@ -234,9 +234,11 @@ func (o *tagsDynamicObject) Get(key string) goja.Value {
 	return o.Runtime.ToValue(tag)
 }
 
-// Set a property value for the key. Return true if succeed.
-// If a type different from a string is passed as value then
-// it will be implicitly converted to the goja's relative string representation.
+// Set a property value for the key. It returns true if succeed.
+// String, Boolean and Number types are implicitly converted
+// to the goja's relative string representation.
+// In any other case, if the Throw option is set then an error is raised
+// otherwise just a Warning is written.
 func (o *tagsDynamicObject) Set(key string, val goja.Value) bool {
 	switch val.ExportType().Kind() { //nolint:exhaustive
 	case
